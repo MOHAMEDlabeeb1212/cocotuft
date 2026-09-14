@@ -59,13 +59,10 @@ from fastapi.responses import FileResponse, RedirectResponse
 web_build_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../build/web"))
 
 if os.path.exists(web_build_dir):
-    app.mount("/static", StaticFiles(directory=web_build_dir), name="static")
-
-    @app.get("/", include_in_schema=False)
-    def serve_flutter_web():
-        return FileResponse(os.path.join(web_build_dir, "index.html"))
+    app.mount("/", StaticFiles(directory=web_build_dir, html=True), name="web")
 else:
     @app.get("/", include_in_schema=False)
     def root_redirect():
         return RedirectResponse(url="/docs")
+
 
