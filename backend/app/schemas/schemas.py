@@ -340,6 +340,8 @@ class TuftingSummaryRow(BaseModel):
 
 class ProductionSummaryOut(BaseModel):
     filter_date: Optional[date] = None
+    from_date: Optional[date] = None
+    to_date: Optional[date] = None
     filter_machine: Optional[str] = "All"
     filter_shift: Optional[str] = "All"
     filter_status: Optional[str] = "APPROVED"

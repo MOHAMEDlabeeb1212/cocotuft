@@ -23,6 +23,10 @@ router = APIRouter(prefix="/summary", tags=["Tufting Summary"])
 @router.get("", response_model=ProductionSummaryOut)
 def get_tufting_summary(
     filter_date: Optional[date] = Query(None, description="Filter summary by date"),
+    from_date: Optional[date] = Query(None, description="Filter start date"),
+    to_date: Optional[date] = Query(None, description="Filter end date"),
+    date_from: Optional[date] = Query(None, description="Alias for start date"),
+    date_to: Optional[date] = Query(None, description="Alias for end date"),
     filter_machine: Optional[str] = Query("All", description="Filter by machine name"),
     filter_shift: Optional[str] = Query("All", description="Filter by shift name"),
     filter_status: Optional[str] = Query("APPROVED", description="Filter status (APPROVED, All)"),
@@ -32,7 +36,7 @@ def get_tufting_summary(
     """
     Section Purpose: Dynamic Tufting Production Summary matching paper report columns:
     Production Order No, Machine, Pile Height, Width, Length, Target Qty, Actual Qty,
-    Variation, Balance Qty, Running Meter.
+    Variation, Balance Qty, Running Meter. Supports flexible Date From and Date To range filters.
     """
     query = db.query(ProductionEntry).join(
         ProductionDetail, ProductionEntry.entry_id == ProductionDetail.entry_id
@@ -42,8 +46,13 @@ def get_tufting_summary(
         Shift, ProductionEntry.shift_id == Shift.shift_id
     )
 
-    if filter_date:
-        query = query.filter(ProductionEntry.entry_date == filter_date)
+    eff_from = from_date or date_from or filter_date
+    eff_to = to_date or date_to or filter_date
+
+    if eff_from:
+        query = query.filter(ProductionEntry.entry_date >= eff_from)
+    if eff_to:
+        query = query.filter(ProductionEntry.entry_date <= eff_to)
     if filter_machine and filter_machine != "All":
         query = query.filter(Machine.machine_name == filter_machine)
     if filter_shift and filter_shift != "All":
@@ -51,7 +60,7 @@ def get_tufting_summary(
     if filter_status and filter_status != "All":
         query = query.filter(ProductionEntry.status == filter_status)
 
-    entries = query.order_by(ProductionEntry.created_at.desc()).all()
+    entries = query.order_by(ProductionEntry.entry_date.desc(), ProductionEntry.created_at.desc()).all()
 
     rows = []
     tot_target = 0.0
@@ -84,7 +93,9 @@ def get_tufting_summary(
         tot_running += d.total_running_meter
 
     return ProductionSummaryOut(
-        filter_date=filter_date,
+        filter_date=filter_date or eff_from,
+        from_date=eff_from,
+        to_date=eff_to,
         filter_machine=filter_machine,
         filter_shift=filter_shift,
         filter_status=filter_status,

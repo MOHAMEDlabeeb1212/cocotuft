@@ -70,12 +70,30 @@ class ProductionProvider with ChangeNotifier {
     }
   }
 
-  Future<void> fetchEntries({String? status}) async {
+  String? currentFromDate;
+  String? currentToDate;
+  String? currentStatus;
+
+  Future<void> fetchEntries({String? status, String? fromDate, String? toDate}) async {
     isLoading = true;
     notifyListeners();
     try {
-      final path = status != null ? '/production?status=$status' : '/production';
-      final res = await _apiService.get(path);
+      currentStatus = status ?? currentStatus;
+      currentFromDate = fromDate;
+      currentToDate = toDate;
+      
+      final queryParams = <String>[];
+      if (status != null && status.isNotEmpty && status != 'All') {
+        queryParams.add('status=$status');
+      }
+      if (fromDate != null && fromDate.isNotEmpty) {
+        queryParams.add('from_date=$fromDate');
+      }
+      if (toDate != null && toDate.isNotEmpty) {
+        queryParams.add('to_date=$toDate');
+      }
+      final queryString = queryParams.isNotEmpty ? '?${queryParams.join('&')}' : '';
+      final res = await _apiService.get('/production$queryString');
       entries = (res as List).map((x) => ProductionEntryModel.fromJson(x)).toList();
       errorMessage = null;
     } catch (e) {
@@ -91,7 +109,7 @@ class ProductionProvider with ChangeNotifier {
     notifyListeners();
     try {
       await _apiService.post('/production', payload);
-      await fetchEntries();
+      await fetchEntries(status: currentStatus, fromDate: currentFromDate, toDate: currentToDate);
       return true;
     } catch (e) {
       errorMessage = e.toString();
@@ -107,7 +125,7 @@ class ProductionProvider with ChangeNotifier {
     notifyListeners();
     try {
       await _apiService.put('/production/$entryId', payload);
-      await fetchEntries();
+      await fetchEntries(status: currentStatus, fromDate: currentFromDate, toDate: currentToDate);
       return true;
     } catch (e) {
       errorMessage = e.toString();
@@ -125,7 +143,7 @@ class ProductionProvider with ChangeNotifier {
       await _apiService.post('/production/$entryId/approve', {
         'supervisor_remarks': remarks ?? 'Confirmed and approved by supervisor.',
       });
-      await fetchEntries();
+      await fetchEntries(status: currentStatus, fromDate: currentFromDate, toDate: currentToDate);
       return true;
     } catch (e) {
       errorMessage = e.toString();
@@ -143,7 +161,7 @@ class ProductionProvider with ChangeNotifier {
       await _apiService.post('/production/$entryId/reject', {
         'rejection_reason': reason,
       });
-      await fetchEntries();
+      await fetchEntries(status: currentStatus, fromDate: currentFromDate, toDate: currentToDate);
       return true;
     } catch (e) {
       errorMessage = e.toString();
@@ -163,17 +181,39 @@ class ProductionProvider with ChangeNotifier {
     }
   }
 
-  Future<void> fetchTuftingSummary({String? date, String? machine, String? shift, String? status}) async {
+  Future<void> fetchTuftingSummary({
+    String? date,
+    String? fromDate,
+    String? toDate,
+    String? machine,
+    String? shift,
+    String? status,
+  }) async {
     isLoading = true;
     notifyListeners();
     try {
-      String query = '/summary?';
-      if (date != null) query += 'filter_date=$date&';
-      if (machine != null) query += 'filter_machine=$machine&';
-      if (shift != null) query += 'filter_shift=$shift&';
-      if (status != null) query += 'filter_status=$status&';
+      final queryParams = <String>[];
+      if (fromDate != null && fromDate.isNotEmpty) {
+        queryParams.add('from_date=$fromDate');
+      }
+      if (toDate != null && toDate.isNotEmpty) {
+        queryParams.add('to_date=$toDate');
+      }
+      if (date != null && date.isNotEmpty && (fromDate == null || fromDate.isEmpty)) {
+        queryParams.add('filter_date=$date');
+      }
+      if (machine != null && machine.isNotEmpty && machine != 'All') {
+        queryParams.add('filter_machine=$machine');
+      }
+      if (shift != null && shift.isNotEmpty && shift != 'All') {
+        queryParams.add('filter_shift=$shift');
+      }
+      if (status != null && status.isNotEmpty && status != 'All') {
+        queryParams.add('filter_status=$status');
+      }
 
-      final res = await _apiService.get(query);
+      final queryString = queryParams.isNotEmpty ? '?${queryParams.join('&')}' : '';
+      final res = await _apiService.get('/summary$queryString');
       summaryReport = TuftingSummaryReportModel.fromJson(res);
       errorMessage = null;
     } catch (e) {

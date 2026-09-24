@@ -275,6 +275,9 @@ class TuftingSummaryRowModel {
 }
 
 class TuftingSummaryReportModel {
+  final String? filterDate;
+  final String? fromDate;
+  final String? toDate;
   final List<TuftingSummaryRowModel> rows;
   final int totalEntries;
   final double grandTotalTargetQty;
@@ -284,6 +287,9 @@ class TuftingSummaryReportModel {
   final double grandTotalRunningMeter;
 
   TuftingSummaryReportModel({
+    this.filterDate,
+    this.fromDate,
+    this.toDate,
     required this.rows,
     required this.totalEntries,
     required this.grandTotalTargetQty,
@@ -299,6 +305,9 @@ class TuftingSummaryReportModel {
         rawRows.map((r) => TuftingSummaryRowModel.fromJson(r)).toList();
 
     return TuftingSummaryReportModel(
+      filterDate: json['filter_date']?.toString(),
+      fromDate: json['from_date']?.toString(),
+      toDate: json['to_date']?.toString(),
       rows: parsedRows,
       totalEntries: json['total_entries'] ?? 0,
       grandTotalTargetQty: (json['grand_total_target_qty'] ?? 0.0).toDouble(),

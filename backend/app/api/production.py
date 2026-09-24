@@ -6,7 +6,7 @@
 # super-user overrides (Admin can edit and update ANY record at any stage).
 # ==============================================================================
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -153,11 +153,19 @@ def create_production_entry(
 @router.get("", response_model=List[ProductionEntryOut])
 def list_production_entries(
     status_filter: Optional[str] = Query(None, alias="status"),
+    from_date: Optional[date] = Query(None, alias="from_date"),
+    to_date: Optional[date] = Query(None, alias="to_date"),
+    date_from: Optional[date] = Query(None, alias="date_from"),
+    date_to: Optional[date] = Query(None, alias="date_to"),
+    start_date: Optional[date] = Query(None, alias="start_date"),
+    end_date: Optional[date] = Query(None, alias="end_date"),
+    filter_date: Optional[date] = Query(None, alias="filter_date"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """
     Section Purpose: Lists production entries. Workers see own records; Supervisors & Admins see all.
+    Supports filtering by status and date range (from_date to to_date).
     """
     query = db.query(ProductionEntry)
     user_role = current_user.role.role_name.upper() if current_user.role else "WORKER"
@@ -165,10 +173,18 @@ def list_production_entries(
     if user_role == "WORKER":
         query = query.filter(ProductionEntry.worker_id == current_user.user_id)
 
-    if status_filter:
+    if status_filter and status_filter != "All":
         query = query.filter(ProductionEntry.status == status_filter)
 
-    entries = query.order_by(ProductionEntry.created_at.desc()).all()
+    eff_from = from_date or date_from or start_date or filter_date
+    eff_to = to_date or date_to or end_date or filter_date
+
+    if eff_from:
+        query = query.filter(ProductionEntry.entry_date >= eff_from)
+    if eff_to:
+        query = query.filter(ProductionEntry.entry_date <= eff_to)
+
+    entries = query.order_by(ProductionEntry.entry_date.desc(), ProductionEntry.created_at.desc()).all()
     return [_format_entry_out(e) for e in entries]
 
 

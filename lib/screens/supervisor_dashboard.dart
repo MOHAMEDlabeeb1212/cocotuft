@@ -8,10 +8,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../core/constants/app_colors.dart';
 import '../models/production_models.dart';
 import '../providers/production_provider.dart';
 import '../widgets/kpi_card.dart';
+import '../widgets/date_range_filter_bar.dart';
 import 'supervisor_review_screen.dart';
 
 class SupervisorDashboard extends StatefulWidget {
@@ -24,6 +26,8 @@ class SupervisorDashboard extends StatefulWidget {
 
 class _SupervisorDashboardState extends State<SupervisorDashboard> {
   ProductionEntryModel? _selectedEntryForReview;
+  DateTime? _startDate;
+  DateTime? _endDate;
 
   @override
   void initState() {
@@ -31,8 +35,17 @@ class _SupervisorDashboardState extends State<SupervisorDashboard> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<ProductionProvider>(context, listen: false);
       provider.loadMasterData();
-      provider.fetchEntries();
+      _loadEntries();
     });
+  }
+
+  void _loadEntries() {
+    final startStr = _startDate != null ? DateFormat('yyyy-MM-dd').format(_startDate!) : null;
+    final endStr = _endDate != null ? DateFormat('yyyy-MM-dd').format(_endDate!) : null;
+    Provider.of<ProductionProvider>(context, listen: false).fetchEntries(
+      fromDate: startStr,
+      toDate: endStr,
+    );
   }
 
   @override
@@ -42,7 +55,7 @@ class _SupervisorDashboardState extends State<SupervisorDashboard> {
         entry: _selectedEntryForReview!,
         onBack: () {
           setState(() => _selectedEntryForReview = null);
-          Provider.of<ProductionProvider>(context, listen: false).fetchEntries();
+          _loadEntries();
         },
       );
     }
@@ -133,12 +146,35 @@ class _SupervisorDashboardState extends State<SupervisorDashboard> {
                       'REFRESH QUEUE',
                       style: GoogleFonts.inter(fontWeight: FontWeight.bold, letterSpacing: 0.5),
                     ),
-                    onPressed: () => provider.fetchEntries(),
+                    onPressed: _loadEntries,
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+
+            // Date Range Filter Bar for Supervisor Queue
+            DateRangeFilterBar(
+              title: 'Supervisor Queue Date Filter',
+              subtitle: 'Select Date From and Date To or use quick presets to filter queue and metrics',
+              initialStartDate: _startDate,
+              initialEndDate: _endDate,
+              onApply: (start, end) {
+                setState(() {
+                  _startDate = start;
+                  _endDate = end;
+                });
+                _loadEntries();
+              },
+              onClear: () {
+                setState(() {
+                  _startDate = null;
+                  _endDate = null;
+                });
+                _loadEntries();
+              },
+            ),
+            const SizedBox(height: 20),
 
             // KPI Cards Row
             Row(
@@ -149,7 +185,7 @@ class _SupervisorDashboardState extends State<SupervisorDashboard> {
                     value: "${pendingEntries.length}",
                     icon: Icons.pending_actions_rounded,
                     color: AppColors.warningAmber,
-                    subtitle: "Action required",
+                    subtitle: _startDate != null || _endDate != null ? "For selected dates" : "Action required",
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -179,7 +215,7 @@ class _SupervisorDashboardState extends State<SupervisorDashboard> {
                     value: "${totalSqm.toStringAsFixed(2)} m²",
                     icon: Icons.straighten_rounded,
                     color: AppColors.secondaryTeal,
-                    subtitle: "Total shop-floor volume",
+                    subtitle: _startDate != null || _endDate != null ? "Selected dates volume" : "Total shop-floor volume",
                   ),
                 ),
               ],
@@ -220,7 +256,7 @@ class _SupervisorDashboardState extends State<SupervisorDashboard> {
                               const Icon(Icons.task_alt_rounded, size: 48, color: AppColors.successGreen),
                               const SizedBox(height: 12),
                               Text(
-                                'All caught up! No pending Tufting entries awaiting confirmation.',
+                                'All caught up! No pending Tufting entries awaiting confirmation for selected dates.',
                                 style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textDark),
                               ),
                             ],
@@ -237,6 +273,7 @@ class _SupervisorDashboardState extends State<SupervisorDashboard> {
                           dataRowMaxHeight: 56,
                           columns: const [
                             DataColumn(label: Text('ENTRY NO')),
+                            DataColumn(label: Text('DATE')),
                             DataColumn(label: Text('WORKER')),
                             DataColumn(label: Text('MACHINE')),
                             DataColumn(label: Text('S.O. (ORDER)')),
@@ -247,6 +284,20 @@ class _SupervisorDashboardState extends State<SupervisorDashboard> {
                             return DataRow(cells: [
                               DataCell(
                                 Text(entry.entryNumber, style: GoogleFonts.inter(fontWeight: FontWeight.bold, color: AppColors.primaryNavy)),
+                              ),
+                              DataCell(
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surfaceMuted,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(color: AppColors.borderLight),
+                                  ),
+                                  child: Text(
+                                    entry.entryDate,
+                                    style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textDark),
+                                  ),
+                                ),
                               ),
                               DataCell(Text(entry.workerName ?? 'Worker', style: GoogleFonts.inter(fontSize: 13))),
                               DataCell(Text(entry.machineName ?? 'Tufting Machine', style: GoogleFonts.inter(fontSize: 13))),

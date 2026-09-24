@@ -6,7 +6,8 @@
 # ==============================================================================
 
 from datetime import date
-from fastapi import APIRouter, Depends
+from typing import Optional
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
@@ -64,43 +65,59 @@ def get_worker_dashboard(
 
 @router.get("/supervisor", response_model=SupervisorDashboardOut)
 def get_supervisor_dashboard(
+    from_date: Optional[date] = Query(None, description="Start date filter"),
+    to_date: Optional[date] = Query(None, description="End date filter"),
     db: Session = Depends(get_db),
     current_user: User = Depends(RoleChecker(["SUPERVISOR", "ADMIN"]))
 ):
     """
     Section Purpose: Delivers Supervisor KPI metrics (Pending approvals queue,
-    Approved today count, Rejected today count, and total shop-floor SQM).
+    Approved count, Rejected count, and total shop-floor SQM).
+    Optionally filtered by from_date and to_date; defaults to today for daily stats.
     """
     today = date.today()
+    start = from_date or today
+    end = to_date or today
 
-    pending_count = db.query(ProductionEntry).filter(ProductionEntry.status == EntryStatus.PENDING_APPROVAL).count()
-    approved_today = db.query(ProductionEntry).filter(
-        ProductionEntry.entry_date == today,
+    pending_query = db.query(ProductionEntry).filter(ProductionEntry.status == EntryStatus.PENDING_APPROVAL)
+    if from_date:
+        pending_query = pending_query.filter(ProductionEntry.entry_date >= from_date)
+    if to_date:
+        pending_query = pending_query.filter(ProductionEntry.entry_date <= to_date)
+    pending_count = pending_query.count()
+
+    approved_query = db.query(ProductionEntry).filter(
+        ProductionEntry.entry_date >= start,
+        ProductionEntry.entry_date <= end,
         ProductionEntry.status == EntryStatus.APPROVED
-    ).count()
-    rejected_today = db.query(ProductionEntry).filter(
-        ProductionEntry.entry_date == today,
-        ProductionEntry.status == EntryStatus.REJECTED
-    ).count()
+    )
+    approved_count = approved_query.count()
 
-    # Total SQM across factory today
-    sqm_today = db.query(
+    rejected_query = db.query(ProductionEntry).filter(
+        ProductionEntry.entry_date >= start,
+        ProductionEntry.entry_date <= end,
+        ProductionEntry.status == EntryStatus.REJECTED
+    )
+    rejected_count = rejected_query.count()
+
+    # Total SQM across factory for selected period
+    sqm_query = db.query(
         func.coalesce(func.sum(ProductionDetail.actual_qty), 0.0)
     ).join(
         ProductionEntry, ProductionDetail.entry_id == ProductionEntry.entry_id
     ).filter(
-        ProductionEntry.entry_date == today
-    ).scalar()
+        ProductionEntry.entry_date >= start,
+        ProductionEntry.entry_date <= end
+    )
+    sqm_period = sqm_query.scalar()
 
     # Fetch pending entries awaiting review
-    pending_list = db.query(ProductionEntry).filter(
-        ProductionEntry.status == EntryStatus.PENDING_APPROVAL
-    ).order_by(ProductionEntry.created_at.asc()).all()
+    pending_list = pending_query.order_by(ProductionEntry.created_at.asc()).all()
 
     return SupervisorDashboardOut(
         pending_approvals_count=pending_count,
-        approved_today_count=approved_today,
-        rejected_today_count=rejected_today,
-        todays_total_sqm=round(float(sqm_today), 2),
+        approved_today_count=approved_count,
+        rejected_today_count=rejected_count,
+        todays_total_sqm=round(float(sqm_period), 2),
         pending_entries=[_format_entry_out(e) for e in pending_list]
     )

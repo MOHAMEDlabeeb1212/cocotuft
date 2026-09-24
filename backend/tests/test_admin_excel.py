@@ -190,3 +190,55 @@ def test_excel_import_flow():
     res_exec = client.post("/api/excel/import/execute", json=val_payload, headers=headers)
     assert res_exec.status_code == 200
     assert res_exec.json()["created_count"] >= 1
+
+
+def test_production_and_summary_date_range_filtering():
+    headers = get_auth_header("supervisor01")
+
+    # Test GET /production with date range
+    res_all = client.get("/api/production", headers=headers)
+    assert res_all.status_code == 200
+    entries = res_all.json()
+    assert len(entries) > 0
+
+    first_entry_date = entries[0]["entry_date"]
+
+    # Filter with from_date and to_date
+    res_filtered = client.get(
+        f"/api/production?from_date={first_entry_date}&to_date={first_entry_date}",
+        headers=headers
+    )
+    assert res_filtered.status_code == 200
+    for e in res_filtered.json():
+        assert e["entry_date"] == first_entry_date
+
+    # Filter with distant past range (should return empty list)
+    res_empty = client.get(
+        "/api/production?from_date=2000-01-01&to_date=2000-01-02",
+        headers=headers
+    )
+    assert res_empty.status_code == 200
+    assert len(res_empty.json()) == 0
+
+    # Test GET /summary with date range
+    res_summary = client.get(
+        f"/api/summary?from_date={first_entry_date}&to_date={first_entry_date}&filter_status=All",
+        headers=headers
+    )
+    assert res_summary.status_code == 200
+    summary_data = res_summary.json()
+    assert summary_data["from_date"] == first_entry_date
+    assert summary_data["to_date"] == first_entry_date
+    assert "rows" in summary_data
+    assert "grand_total_actual_qty" in summary_data
+
+    # Test GET /dashboard/supervisor with date range
+    res_dash = client.get(
+        f"/api/dashboard/supervisor?from_date={first_entry_date}&to_date={first_entry_date}",
+        headers=headers
+    )
+    assert res_dash.status_code == 200
+    dash_data = res_dash.json()
+    assert "pending_approvals_count" in dash_data
+    assert "todays_total_sqm" in dash_data
+

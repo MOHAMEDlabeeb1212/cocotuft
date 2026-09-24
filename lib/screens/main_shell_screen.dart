@@ -6,6 +6,7 @@
 // ==============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../core/constants/app_colors.dart';
@@ -132,7 +133,9 @@ class _MainShellScreenState extends State<MainShellScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'REST API Online • 127.0.0.1:8000',
+                                  kIsWeb && Uri.base.origin.contains('onrender.com')
+                                      ? 'REST API Online • cocotuft.onrender.com'
+                                      : 'REST API Online • 127.0.0.1:8000',
                                   style: GoogleFonts.inter(
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
